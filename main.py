@@ -66,6 +66,9 @@ class Game:
         self.mega_book_timer = 0
         self.mega_book_duration = 3000  # 3 seconds
         
+        # Particle effects
+        self.particles = []
+        
     def handle_events(self):
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -101,9 +104,13 @@ class Game:
         if current_time - self.speed_boost_timer > self.speed_boost_duration:
             self.player.speed = 5  # Reset to normal speed
         
-        # Spawn enemies
+        # Spawn enemies (with increasing difficulty)
         current_time = pygame.time.get_ticks()
-        if current_time - self.enemy_spawn_timer > self.enemy_spawn_delay:
+        # Decrease spawn delay over time (minimum 500ms)
+        difficulty_factor = max(0.5, 1.0 - (current_time / 120000))  # 2 minutes to reach max difficulty
+        current_spawn_delay = int(self.enemy_spawn_delay * difficulty_factor)
+        
+        if current_time - self.enemy_spawn_timer > current_spawn_delay:
             self.spawn_enemy()
             self.enemy_spawn_timer = current_time
         
@@ -135,6 +142,12 @@ class Game:
             if power_up.x < -50:  # Remove power-ups that go off-screen
                 self.power_ups.remove(power_up)
         
+        # Update particles
+        for particle in self.particles[:]:
+            particle.update()
+            if particle.life <= 0:
+                self.particles.remove(particle)
+        
         # Check collisions
         self.check_collisions()
     
@@ -162,6 +175,7 @@ class Game:
         for enemy in self.enemies[:]:
             distance = math.sqrt((enemy.x - self.player.x)**2 + (enemy.y - self.player.y)**2)
             if distance <= shush_range:
+                self.create_particles(enemy.x, enemy.y, enemy.color)
                 self.enemies.remove(enemy)
                 self.score += 10
     
@@ -175,10 +189,12 @@ class Game:
                         for nearby_enemy in self.enemies[:]:
                             distance = math.sqrt((nearby_enemy.x - book.x)**2 + (nearby_enemy.y - book.y)**2)
                             if distance < 80:  # Area of effect
+                                self.create_particles(nearby_enemy.x, nearby_enemy.y, nearby_enemy.color)
                                 self.enemies.remove(nearby_enemy)
                                 self.score += 10
                     else:
                         # Regular book - single target
+                        self.create_particles(enemy.x, enemy.y, enemy.color)
                         self.enemies.remove(enemy)
                         self.score += 10
                     self.books.remove(book)
@@ -199,6 +215,11 @@ class Game:
         elif power_up.type == "mega_book":
             self.mega_book_timer = current_time
     
+    def create_particles(self, x, y, color, count=5):
+        for _ in range(count):
+            particle = Particle(x, y, color)
+            self.particles.append(particle)
+    
     def draw(self):
         self.screen.fill(WHITE)
         
@@ -213,6 +234,8 @@ class Game:
             book.draw(self.screen)
         for power_up in self.power_ups:
             power_up.draw(self.screen)
+        for particle in self.particles:
+            particle.draw(self.screen)
         
         # Draw shush effect
         self.draw_shush_effect()
@@ -324,6 +347,7 @@ class Game:
         self.enemies.clear()
         self.books.clear()
         self.power_ups.clear()
+        self.particles.clear()
         self.player = Librarian()
         self.book_cooldown = 0
         self.shush_cooldown = 0
@@ -376,17 +400,49 @@ class NoisyMonster:
         self.height = 30
         self.speed = random.uniform(1, 3)
         self.noise_value = random.randint(5, 15)
-        self.color = random.choice([RED, GREEN, YELLOW, (255, 0, 255)])
+        self.monster_type = random.choice(["student", "animal", "ghost"])
+        
+        # Different colors and properties for different monster types
+        if self.monster_type == "student":
+            self.color = (255, 200, 200)  # Light pink
+            self.noise_value = random.randint(8, 12)
+        elif self.monster_type == "animal":
+            self.color = (200, 150, 100)  # Brown
+            self.noise_value = random.randint(5, 10)
+        else:  # ghost
+            self.color = (200, 200, 255)  # Light blue
+            self.noise_value = random.randint(10, 15)
     
     def update(self):
         self.x -= self.speed
     
     def draw(self, screen):
-        # Draw monster (simple circle with eyes)
-        pygame.draw.circle(screen, self.color, (int(self.x), int(self.y)), 15)
-        # Draw eyes
-        pygame.draw.circle(screen, BLACK, (int(self.x - 5), int(self.y - 5)), 3)
-        pygame.draw.circle(screen, BLACK, (int(self.x + 5), int(self.y - 5)), 3)
+        # Draw monster based on type
+        if self.monster_type == "student":
+            # Draw student (rectangle with backpack)
+            pygame.draw.rect(screen, self.color, (self.x - 10, self.y - 15, 20, 30))
+            pygame.draw.rect(screen, (100, 50, 50), (self.x + 8, self.y - 10, 8, 15))  # Backpack
+        elif self.monster_type == "animal":
+            # Draw animal (circle with ears)
+            pygame.draw.circle(screen, self.color, (int(self.x), int(self.y)), 12)
+            pygame.draw.circle(screen, self.color, (int(self.x - 8), int(self.y - 8)), 4)  # Ear
+            pygame.draw.circle(screen, self.color, (int(self.x + 8), int(self.y - 8)), 4)  # Ear
+        else:  # ghost
+            # Draw ghost (wavy bottom)
+            points = [
+                (self.x - 10, self.y - 10),
+                (self.x + 10, self.y - 10),
+                (self.x + 8, self.y + 5),
+                (self.x + 5, self.y + 10),
+                (self.x, self.y + 5),
+                (self.x - 5, self.y + 10),
+                (self.x - 8, self.y + 5)
+            ]
+            pygame.draw.polygon(screen, self.color, points)
+        
+        # Draw eyes for all types
+        pygame.draw.circle(screen, BLACK, (int(self.x - 4), int(self.y - 3)), 2)
+        pygame.draw.circle(screen, BLACK, (int(self.x + 4), int(self.y - 3)), 2)
 
 class Book:
     def __init__(self, x, y, target_pos, is_mega=False):
@@ -457,6 +513,29 @@ class PowerUp:
             pygame.draw.rect(screen, WHITE, (self.x - 6, self.y - 8, 12, 16), 2)
             pygame.draw.line(screen, WHITE, (self.x - 2, self.y - 8), (self.x - 2, self.y + 8), 1)
             pygame.draw.line(screen, WHITE, (self.x + 2, self.y - 8), (self.x + 2, self.y + 8), 1)
+
+class Particle:
+    def __init__(self, x, y, color):
+        self.x = x
+        self.y = y
+        self.color = color
+        self.life = 30  # frames
+        self.max_life = 30
+        self.dx = random.uniform(-3, 3)
+        self.dy = random.uniform(-3, 3)
+        self.size = random.randint(2, 5)
+    
+    def update(self):
+        self.x += self.dx
+        self.y += self.dy
+        self.life -= 1
+        self.dy += 0.1  # gravity
+    
+    def draw(self, screen):
+        alpha = int(255 * (self.life / self.max_life))
+        size = int(self.size * (self.life / self.max_life))
+        if size > 0:
+            pygame.draw.circle(screen, self.color, (int(self.x), int(self.y)), size)
 
 if __name__ == "__main__":
     game = Game()
