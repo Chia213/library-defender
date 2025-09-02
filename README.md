@@ -38,22 +38,44 @@ You are a librarian, and your goal is to keep the library quiet. Noisy monsters 
 ## Development Status
 
 - ✅ Basic game structure
-- ✅ Player movement
+- ✅ Player movement (arrow keys)
 - ✅ Enemy spawning and movement
-- ✅ Book throwing (click to shoot)
+- ✅ Book throwing (mouse click to aim and shoot)
 - ✅ Collision detection
 - ✅ Noise meter
 - ✅ Game over and restart
-- ✅ Basic scoring system
-- 🔄 AOE shush attack (in progress)
-- ⏳ Power-ups
-- ⏳ Sound effects
-- ⏳ Visual polish
+- ✅ Scoring system
+- ✅ AOE shush attack (spacebar with cooldown)
+- ✅ Power-ups (Coffee ☕ for speed, Mega Book 📖 for area damage)
+- ✅ Three enemy types (students, animals, ghosts)
+- ✅ Particle effects
+- ✅ Difficulty progression
+- ✅ Visual polish and animations
+
+## Game Features
+
+### Enemy Types
+- **Students** (pink): Medium noise level, moderate speed
+- **Animals** (brown): Low noise level, slower speed  
+- **Ghosts** (blue): High noise level, faster speed
+
+### Power-ups
+- **Coffee ☕**: Doubles player speed for 5 seconds
+- **Mega Book 📖**: Creates area damage books for 3 seconds
+
+### Combat System
+- **Book Throwing**: Click to aim and throw books at enemies
+- **Shush Attack**: Spacebar for AOE silence (1 second cooldown)
+- **Particle Effects**: Visual feedback when enemies are defeated
+
+### Difficulty
+- Enemies spawn faster over time (2 minutes to reach maximum difficulty)
+- Different enemy types have varying noise levels and speeds
 
 ## Future Features
 
-- Different enemy types with varying noise levels
-- Power-ups (Coffee ☕ for speed, Mega Book 📖 for area damage)
 - Silent Reading Mode (dark screen with glowing eyes)
-- Sound effects ("shhh", monster laughs)
-- Better graphics and animations
+- Sound effects ("shhh", monster laughs, book throwing)
+- More power-up types
+- High score system
+- Multiple levels/rooms
