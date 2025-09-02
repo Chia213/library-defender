@@ -49,14 +49,24 @@ class Game:
         self.book_cooldown = 0
         self.book_cooldown_delay = 300  # milliseconds
         
+        # Shush attack cooldown
+        self.shush_cooldown = 0
+        self.shush_cooldown_delay = 1000  # milliseconds
+        self.shush_effect_timer = 0
+        self.shush_effect_duration = 500  # milliseconds
+        
     def handle_events(self):
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 self.running = False
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_SPACE:
-                    # Shush attack
-                    self.shush_attack()
+                    # Shush attack (with cooldown)
+                    current_time = pygame.time.get_ticks()
+                    if current_time - self.shush_cooldown > self.shush_cooldown_delay:
+                        self.shush_attack()
+                        self.shush_cooldown = current_time
+                        self.shush_effect_timer = current_time
                 elif event.key == pygame.K_r and self.game_over:
                     # Restart game
                     self.restart_game()
@@ -144,6 +154,9 @@ class Game:
         for book in self.books:
             book.draw(self.screen)
         
+        # Draw shush effect
+        self.draw_shush_effect()
+        
         # Draw UI
         self.draw_ui()
         
@@ -160,6 +173,27 @@ class Game:
             for j in range(0, SCREEN_HEIGHT, 20):
                 pygame.draw.rect(self.screen, random.choice([RED, BLUE, GREEN, YELLOW]), 
                                (i + 5, j + 5, 70, 10))
+    
+    def draw_shush_effect(self):
+        # Draw shush effect circle if recently used
+        current_time = pygame.time.get_ticks()
+        if current_time - self.shush_effect_timer < self.shush_effect_duration:
+            # Calculate alpha based on time remaining
+            time_remaining = self.shush_effect_duration - (current_time - self.shush_effect_timer)
+            alpha = int(255 * (time_remaining / self.shush_effect_duration))
+            
+            # Create a surface for the shush effect
+            shush_surface = pygame.Surface((200, 200))
+            shush_surface.set_alpha(alpha)
+            shush_surface.fill((0, 0, 0, 0))  # Transparent background
+            
+            # Draw the shush circle
+            pygame.draw.circle(shush_surface, (255, 255, 255), (100, 100), 100, 3)
+            
+            # Blit the effect centered on the player
+            effect_x = self.player.x + self.player.width // 2 - 100
+            effect_y = self.player.y + self.player.height // 2 - 100
+            self.screen.blit(shush_surface, (effect_x, effect_y))
     
     def draw_ui(self):
         # Draw noise meter
@@ -180,6 +214,11 @@ class Game:
         font = pygame.font.Font(None, 36)
         score_text = font.render(f"Score: {self.score}", True, BLACK)
         self.screen.blit(score_text, (10, 10))
+        
+        # Draw controls
+        font = pygame.font.Font(None, 24)
+        controls_text = font.render("Click to throw books | Space to shush | R to restart", True, BLACK)
+        self.screen.blit(controls_text, (10, SCREEN_HEIGHT - 30))
     
     def draw_game_over(self):
         # Semi-transparent overlay
@@ -213,6 +252,9 @@ class Game:
         self.enemies.clear()
         self.books.clear()
         self.player = Librarian()
+        self.book_cooldown = 0
+        self.shush_cooldown = 0
+        self.shush_effect_timer = 0
     
     def run(self):
         while self.running:
