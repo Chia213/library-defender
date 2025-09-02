@@ -55,6 +55,17 @@ class Game:
         self.shush_effect_timer = 0
         self.shush_effect_duration = 500  # milliseconds
         
+        # Power-ups
+        self.power_ups = []
+        self.power_up_spawn_timer = 0
+        self.power_up_spawn_delay = 10000  # 10 seconds
+        
+        # Player power-up effects
+        self.speed_boost_timer = 0
+        self.speed_boost_duration = 5000  # 5 seconds
+        self.mega_book_timer = 0
+        self.mega_book_duration = 3000  # 3 seconds
+        
     def handle_events(self):
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -85,11 +96,21 @@ class Game:
         # Update player
         self.player.update()
         
+        # Check power-up effects
+        current_time = pygame.time.get_ticks()
+        if current_time - self.speed_boost_timer > self.speed_boost_duration:
+            self.player.speed = 5  # Reset to normal speed
+        
         # Spawn enemies
         current_time = pygame.time.get_ticks()
         if current_time - self.enemy_spawn_timer > self.enemy_spawn_delay:
             self.spawn_enemy()
             self.enemy_spawn_timer = current_time
+        
+        # Spawn power-ups
+        if current_time - self.power_up_spawn_timer > self.power_up_spawn_delay:
+            self.spawn_power_up()
+            self.power_up_spawn_timer = current_time
         
         # Update enemies
         for enemy in self.enemies[:]:
@@ -108,6 +129,12 @@ class Game:
                 book.y > SCREEN_HEIGHT or book.y < -book.height):
                 self.books.remove(book)
         
+        # Update power-ups
+        for power_up in self.power_ups[:]:
+            power_up.update()
+            if power_up.x < -50:  # Remove power-ups that go off-screen
+                self.power_ups.remove(power_up)
+        
         # Check collisions
         self.check_collisions()
     
@@ -115,11 +142,18 @@ class Game:
         enemy = NoisyMonster()
         self.enemies.append(enemy)
     
+    def spawn_power_up(self):
+        power_up = PowerUp()
+        self.power_ups.append(power_up)
+    
     def throw_book(self, target_pos):
         # Create a book that moves towards the target position
+        current_time = pygame.time.get_ticks()
+        is_mega_book = current_time - self.mega_book_timer < self.mega_book_duration
+        
         book = Book(self.player.x + self.player.width, 
                    self.player.y + self.player.height // 2, 
-                   target_pos)
+                   target_pos, is_mega_book)
         self.books.append(book)
     
     def shush_attack(self):
@@ -136,10 +170,34 @@ class Game:
         for book in self.books[:]:
             for enemy in self.enemies[:]:
                 if (abs(book.x - enemy.x) < 30 and abs(book.y - enemy.y) < 30):
+                    if book.is_mega:
+                        # Mega book has area damage - remove all nearby enemies
+                        for nearby_enemy in self.enemies[:]:
+                            distance = math.sqrt((nearby_enemy.x - book.x)**2 + (nearby_enemy.y - book.y)**2)
+                            if distance < 80:  # Area of effect
+                                self.enemies.remove(nearby_enemy)
+                                self.score += 10
+                    else:
+                        # Regular book - single target
+                        self.enemies.remove(enemy)
+                        self.score += 10
                     self.books.remove(book)
-                    self.enemies.remove(enemy)
-                    self.score += 10
                     break
+        
+        # Check player-power-up collisions
+        for power_up in self.power_ups[:]:
+            if (abs(power_up.x - self.player.x) < 40 and 
+                abs(power_up.y - self.player.y) < 50):
+                self.collect_power_up(power_up)
+                self.power_ups.remove(power_up)
+    
+    def collect_power_up(self, power_up):
+        current_time = pygame.time.get_ticks()
+        if power_up.type == "coffee":
+            self.speed_boost_timer = current_time
+            self.player.speed = 8  # Double speed
+        elif power_up.type == "mega_book":
+            self.mega_book_timer = current_time
     
     def draw(self):
         self.screen.fill(WHITE)
@@ -153,6 +211,8 @@ class Game:
             enemy.draw(self.screen)
         for book in self.books:
             book.draw(self.screen)
+        for power_up in self.power_ups:
+            power_up.draw(self.screen)
         
         # Draw shush effect
         self.draw_shush_effect()
@@ -215,6 +275,18 @@ class Game:
         score_text = font.render(f"Score: {self.score}", True, BLACK)
         self.screen.blit(score_text, (10, 10))
         
+        # Draw power-up status
+        current_time = pygame.time.get_ticks()
+        if current_time - self.speed_boost_timer < self.speed_boost_duration:
+            font = pygame.font.Font(None, 24)
+            speed_text = font.render("COFFEE BOOST!", True, (139, 69, 19))
+            self.screen.blit(speed_text, (10, 50))
+        
+        if current_time - self.mega_book_timer < self.mega_book_duration:
+            font = pygame.font.Font(None, 24)
+            mega_text = font.render("MEGA BOOK!", True, (255, 165, 0))
+            self.screen.blit(mega_text, (10, 80))
+        
         # Draw controls
         font = pygame.font.Font(None, 24)
         controls_text = font.render("Click to throw books | Space to shush | R to restart", True, BLACK)
@@ -251,10 +323,13 @@ class Game:
         self.noise_level = 0
         self.enemies.clear()
         self.books.clear()
+        self.power_ups.clear()
         self.player = Librarian()
         self.book_cooldown = 0
         self.shush_cooldown = 0
         self.shush_effect_timer = 0
+        self.speed_boost_timer = 0
+        self.mega_book_timer = 0
     
     def run(self):
         while self.running:
@@ -314,13 +389,14 @@ class NoisyMonster:
         pygame.draw.circle(screen, BLACK, (int(self.x + 5), int(self.y - 5)), 3)
 
 class Book:
-    def __init__(self, x, y, target_pos):
+    def __init__(self, x, y, target_pos, is_mega=False):
         self.x = x
         self.y = y
-        self.width = 20
-        self.height = 15
-        self.speed = 8
-        self.color = random.choice([RED, BLUE, GREEN, YELLOW])
+        self.is_mega = is_mega
+        self.width = 30 if is_mega else 20
+        self.height = 25 if is_mega else 15
+        self.speed = 10 if is_mega else 8
+        self.color = (255, 165, 0) if is_mega else random.choice([RED, BLUE, GREEN, YELLOW])
         
         # Calculate direction towards target
         dx = target_pos[0] - x
@@ -340,6 +416,47 @@ class Book:
     
     def draw(self, screen):
         pygame.draw.rect(screen, self.color, (self.x, self.y, self.width, self.height))
+        if self.is_mega:
+            # Draw a star on mega books
+            center_x = self.x + self.width // 2
+            center_y = self.y + self.height // 2
+            pygame.draw.polygon(screen, WHITE, [
+                (center_x, center_y - 8),
+                (center_x + 3, center_y - 3),
+                (center_x + 8, center_y - 3),
+                (center_x + 4, center_y + 1),
+                (center_x + 6, center_y + 6),
+                (center_x, center_y + 3),
+                (center_x - 6, center_y + 6),
+                (center_x - 4, center_y + 1),
+                (center_x - 8, center_y - 3),
+                (center_x - 3, center_y - 3)
+            ])
+
+class PowerUp:
+    def __init__(self):
+        self.x = SCREEN_WIDTH + 50
+        self.y = random.randint(50, SCREEN_HEIGHT - 50)
+        self.width = 25
+        self.height = 25
+        self.speed = 2
+        self.type = random.choice(["coffee", "mega_book"])
+        self.color = (139, 69, 19) if self.type == "coffee" else (255, 165, 0)
+    
+    def update(self):
+        self.x -= self.speed
+    
+    def draw(self, screen):
+        pygame.draw.circle(screen, self.color, (int(self.x), int(self.y)), 12)
+        if self.type == "coffee":
+            # Draw coffee cup
+            pygame.draw.rect(screen, WHITE, (self.x - 8, self.y - 5, 16, 10), 2)
+            pygame.draw.rect(screen, WHITE, (self.x - 6, self.y - 7, 12, 4), 2)
+        else:  # mega_book
+            # Draw book
+            pygame.draw.rect(screen, WHITE, (self.x - 6, self.y - 8, 12, 16), 2)
+            pygame.draw.line(screen, WHITE, (self.x - 2, self.y - 8), (self.x - 2, self.y + 8), 1)
+            pygame.draw.line(screen, WHITE, (self.x + 2, self.y - 8), (self.x + 2, self.y + 8), 1)
 
 if __name__ == "__main__":
     game = Game()
