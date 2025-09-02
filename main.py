@@ -45,6 +45,10 @@ class Game:
         self.enemy_spawn_timer = 0
         self.enemy_spawn_delay = 2000  # milliseconds
         
+        # Book throwing cooldown
+        self.book_cooldown = 0
+        self.book_cooldown_delay = 300  # milliseconds
+        
     def handle_events(self):
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -56,6 +60,13 @@ class Game:
                 elif event.key == pygame.K_r and self.game_over:
                     # Restart game
                     self.restart_game()
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                if event.button == 1:  # Left mouse button
+                    # Throw book towards mouse position (with cooldown)
+                    current_time = pygame.time.get_ticks()
+                    if current_time - self.book_cooldown > self.book_cooldown_delay:
+                        self.throw_book(event.pos)
+                        self.book_cooldown = current_time
     
     def update(self):
         if self.game_over:
@@ -82,7 +93,9 @@ class Game:
         # Update books
         for book in self.books[:]:
             book.update()
-            if book.x > SCREEN_WIDTH:
+            # Remove books that go off-screen
+            if (book.x > SCREEN_WIDTH or book.x < -book.width or 
+                book.y > SCREEN_HEIGHT or book.y < -book.height):
                 self.books.remove(book)
         
         # Check collisions
@@ -91,6 +104,13 @@ class Game:
     def spawn_enemy(self):
         enemy = NoisyMonster()
         self.enemies.append(enemy)
+    
+    def throw_book(self, target_pos):
+        # Create a book that moves towards the target position
+        book = Book(self.player.x + self.player.width, 
+                   self.player.y + self.player.height // 2, 
+                   target_pos)
+        self.books.append(book)
     
     def shush_attack(self):
         # AOE attack - silence all enemies in range
@@ -222,11 +242,6 @@ class Librarian:
             self.x -= self.speed
         if keys[pygame.K_RIGHT] and self.x < SCREEN_WIDTH - self.width:
             self.x += self.speed
-        
-        # Shoot books
-        if keys[pygame.K_SPACE]:
-            # This will be handled in the main game loop
-            pass
     
     def draw(self, screen):
         # Draw librarian (simple rectangle with glasses)
@@ -257,16 +272,29 @@ class NoisyMonster:
         pygame.draw.circle(screen, BLACK, (int(self.x + 5), int(self.y - 5)), 3)
 
 class Book:
-    def __init__(self, x, y):
+    def __init__(self, x, y, target_pos):
         self.x = x
         self.y = y
         self.width = 20
         self.height = 15
         self.speed = 8
         self.color = random.choice([RED, BLUE, GREEN, YELLOW])
+        
+        # Calculate direction towards target
+        dx = target_pos[0] - x
+        dy = target_pos[1] - y
+        distance = math.sqrt(dx*dx + dy*dy)
+        
+        if distance > 0:
+            self.dx = (dx / distance) * self.speed
+            self.dy = (dy / distance) * self.speed
+        else:
+            self.dx = 0
+            self.dy = 0
     
     def update(self):
-        self.x += self.speed
+        self.x += self.dx
+        self.y += self.dy
     
     def draw(self, screen):
         pygame.draw.rect(screen, self.color, (self.x, self.y, self.width, self.height))
